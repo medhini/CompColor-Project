@@ -1,0 +1,7 @@
+*.pyc
+*.npz
+
+ckpt/
+logs/
+pretrained/
+
