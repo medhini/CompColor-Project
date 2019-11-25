@@ -1,7 +1,7 @@
 import pickle
 from PIL import Image, ImageCms
 import numpy as np
-from dataloader import CityScapesDataLoader
+from dataloader import FlickrDataLoader
 from torch.utils.data import DataLoader
 
 import torch
@@ -66,13 +66,11 @@ if __name__ == '__main__':
     # testloader = torch.utils.data.DataLoader(testset, batch_size=4,
     #                                      shuffle=False, num_workers=2)
     
-    trainset = CityScapesDataLoader('/shared/medhini/data/cityscapes/')
+    trainset = FlickrDataLoader('/tmp_data1/flickr30k-images')
     trainloader = DataLoader(trainset, batch_size=1, num_workers=0)
 
-    for i,data in enumerate(trainloader, 0):
-        image = np.asarray(data[0])
-        image = Image.fromarray(np.uint8(image), 'RGB')
-
+    for i,(gray_img, rgb_img) in enumerate(trainloader, 0):
+        image = Image.fromarray(np.uint8(rgb_img[0]), 'RGB')
         # image_palette = extract_pallete(image)
         image_recolorized = hue_shift(image)
         break
