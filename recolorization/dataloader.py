@@ -49,7 +49,13 @@ class FlickrDataLoader(Dataset):
         return len(self.files[self.split])
 
     def __getitem__(self, idx):
-        """Returns gray scale and RGB images"""
+        """
+        Returns each batch of data. 
+        Args:
+            int: idx
+        Returns: 
+            np.array: Gray scale Image (h x w) and RGB image (h x w x 3)
+        """
         
         filename = os.path.join(self.root, self.split, self.files[self.split][idx])
         gray_img = Image.open(filename).convert('L')
