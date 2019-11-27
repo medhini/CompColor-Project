@@ -6,7 +6,7 @@ import numpy as np
 from collections import OrderedDict
 import torch
 import torch.backends.cudnn as cudnn
-from models import ModelBuilder, ColorModel
+from models import ModelBuilder, ColorModel, BilateralColorNet
 from dataset import ColorDataset
 from utils import AverageMeter, Logger
 
@@ -22,6 +22,8 @@ parser.add_argument('--list_val',
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
                     help='model architecture')
 
+parser.add_argument('--root', '-r', default='/tmp_data1/flickr30k-images', type=str, 
+                    help='data root directory')
 parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--size', default=224, type=int, metavar='N',
@@ -91,8 +93,8 @@ def main():
     cudnn.benchmark = True
 
     # create training and validation dataset
-    dataset_train = ColorDataset(args, args.list_train, is_train=True)
-    dataset_val = ColorDataset(args, args.list_val, is_train=False)
+    dataset_train = ColorDataset(args.root, split="train")
+    dataset_val = ColorDataset(args.root, split="val")
 
     # create training and validation loader
     train_loader = torch.utils.data.DataLoader(

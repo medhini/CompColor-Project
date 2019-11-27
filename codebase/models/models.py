@@ -2,23 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from . import resnet
-
+from .bilateral_net import BilateralColorNet
 
 class ColorModel(nn.Module):
     def __init__(self, base_net, opt):
         super(ColorModel, self).__init__()
         self.base_net = base_net
+        self.bilateral_net = BilateralColorNet()
 
         self.crit = nn.CrossEntropyLoss()
 
     def forward(self, img_input, img_gt, is_inference=False):
         # img_input is (b, 3, h, w)
 
-        feat = self.base_net(img_input)  # (b, self.base_net.fc_dim, h//16, w//16)
+        '''Commenting this out for now as Tim's model requires image as input'''
+        # feat = self.base_net(img_input)  # (b, self.base_net.fc_dim, h//16, w//16)
 
         # tri-linear sampling
 
-        output =
+        output = self.bilateral_net(img_input)
 
         loss = self.crit(output, img_gt)
 
