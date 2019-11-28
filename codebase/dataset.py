@@ -24,12 +24,15 @@ class ColorDataset(Dataset):
         """Returns gray scale and RGB images"""
         
         filename = os.path.join(self.root, self.split, self.files[self.split][idx])
-        gray_img = Image.open(filename).convert('L')
-        rgb_img = Image.open(filename)
+        rgb_img = Image.open(filename).convert('L')
 
         if self.transform:
-            gray_img = self.transform(gray_img)
             rgb_img = self.transform(rgb_img)
+        
+        gray_img = rgb_img.convert('L')
+
+        gray_img = torch.from_numpy(np.asarray(gray_img, dtype=np.int64))
+        rgb_img = torch.from_numpy(np.asarray(rgb_img, dtype=np.int64))
 
         return gray_img, rgb_img
 

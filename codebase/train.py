@@ -97,7 +97,7 @@ def main():
     # create training and validation dataset
     transform = transforms.Compose([transforms.Resize(256),
                     transforms.RandomCrop(args.img_size),
-                    transforms.ToTensor(),])
+                    ])
 
     dataset_train = ColorDataset(args.root, split="train",
                     transform=transform)
