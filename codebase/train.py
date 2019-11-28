@@ -9,7 +9,7 @@ import torch.backends.cudnn as cudnn
 from models import ModelBuilder, ColorModel, BilateralColorNet
 from dataset import ColorDataset
 from utils import AverageMeter, Logger
-
+import torchvision.transforms as transforms
 
 parser = argparse.ArgumentParser(description='PyTorch Colorization')
 
@@ -24,6 +24,8 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
 
 parser.add_argument('--root', '-r', default='/tmp_data1/flickr30k-images', type=str, 
                     help='data root directory')
+parser.add_argument('--img_size', '-size', default=[224,224], type=int,
+                    help='resize image to this size')
 parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--size', default=224, type=int, metavar='N',
@@ -93,8 +95,15 @@ def main():
     cudnn.benchmark = True
 
     # create training and validation dataset
-    dataset_train = ColorDataset(args.root, split="train")
-    dataset_val = ColorDataset(args.root, split="val")
+    transform = transforms.Compose([transforms.Resize(256),
+                    transforms.RandomCrop(args.img_size),
+                    transforms.ToTensor(),])
+
+    dataset_train = ColorDataset(args.root, split="train",
+                    transform=transform)
+
+    dataset_val = ColorDataset(args.root, split="val",
+                    transform=transform)
 
     # create training and validation loader
     train_loader = torch.utils.data.DataLoader(

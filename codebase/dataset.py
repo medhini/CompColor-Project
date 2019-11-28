@@ -5,12 +5,14 @@ import torch
 import numpy as np
 from PIL import Image
 
+import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 
 class ColorDataset(Dataset):
-    def __init__(self, root, split='train'):
+    def __init__(self, root, split='train', transform=None):
         self.root = root
         self.split = split
+        self.transform = transform
 
         self.files = {}
         self.files[self.split] = os.listdir(self.root+'/'+self.split)
@@ -25,8 +27,9 @@ class ColorDataset(Dataset):
         gray_img = Image.open(filename).convert('L')
         rgb_img = Image.open(filename)
 
-        gray_img = np.asarray(gray_img, dtype=np.uint8)
-        rgb_img = np.asarray(rgb_img, dtype=np.uint8)
+        if self.transform:
+            gray_img = self.transform(gray_img)
+            rgb_img = self.transform(rgb_img)
 
         return gray_img, rgb_img
 
