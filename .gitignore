@@ -1,0 +1,8 @@
+*.pyc
+*.npz
+
+.vscode/
+ckpt/
+logs/
+pretrained/
+
