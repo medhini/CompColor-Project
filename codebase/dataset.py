@@ -31,7 +31,9 @@ class ColorDataset(Dataset):
             rgb_img = self.transform(rgb_img)
 
         rgb_img = np.asarray(rgb_img) / 255.0
-        lab_img = color.rgb2lab(rgb_img)
+        # TODO: We need the input to be in LAB space, but it is RGB. Adding the
+        # line below causes a sync issue with pytorch for some reason?
+        lab_img = rgb_img  # color.rgb2lab(rgb_img)
         lab_img = torch.from_numpy(lab_img).permute(2, 0, 1).float()
         gray_img = lab_img[0:1, ...]
 
