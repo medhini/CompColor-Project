@@ -55,7 +55,7 @@ class BilateralColorNet(nn.Module):
         )
         self.last_conv = nn.Sequential(
             nn.Conv2d(128, 3 * bilateral_depth, kernel_size=1),
-            nn.Sigmoid(),
+            nn.Tanh(),
         )
 
     def forward(  # pylint: disable=arguments-differ

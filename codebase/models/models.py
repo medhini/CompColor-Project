@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from . import resnet
 from .bilateral_net import BilateralColorNet
+
 
 class ColorModel(nn.Module):
     def __init__(self, base_net, opt):
@@ -10,7 +12,7 @@ class ColorModel(nn.Module):
         self.base_net = base_net
         self.bilateral_net = BilateralColorNet()
 
-        self.crit = nn.CrossEntropyLoss()
+        self.crit = nn.L1Loss()
 
     def forward(self, img_input, img_gt, is_inference=False):
         # img_input is (b, 3, h, w)
@@ -102,5 +104,3 @@ class Resnet(nn.Module):
         # x = x.squeeze(3).squeeze(2)
 
         return x
-
-

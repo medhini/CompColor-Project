@@ -1,15 +1,20 @@
+# TODO: Remove irrelevant code for colorization.
+# TODO: Break into multiple files (CLI and trainer).
 import argparse
 import os
 import shutil
 import time
-import numpy as np
 from collections import OrderedDict
+
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from models import ModelBuilder, ColorModel, BilateralColorNet
-from dataset import ColorDataset
-from utils import AverageMeter, Logger
 import torchvision.transforms as transforms
+from skimage import color
+
+from dataset import ColorDataset
+from models import BilateralColorNet, ColorModel, ModelBuilder
+from utils import AverageMeter, Logger
 
 parser = argparse.ArgumentParser(description='PyTorch Colorization')
 
@@ -22,7 +27,7 @@ parser.add_argument('--list_val',
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
                     help='model architecture')
 
-parser.add_argument('--root', '-r', default='/tmp_data1/flickr30k-images', type=str, 
+parser.add_argument('--root', '-r', default='/shared/timbrooks/datasets/mirflickr', type=str,
                     help='data root directory')
 parser.add_argument('--img_size', '-size', default=[224,224], type=int,
                     help='resize image to this size')
@@ -114,8 +119,9 @@ def main():
     )
     val_loader = torch.utils.data.DataLoader(
         dataset_val,
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=8, pin_memory=True
+        batch_size=args.batch_size, shuffle=True,
+        num_workers=args.workers, drop_last=True,
+        pin_memory=True
     )
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum,
@@ -205,6 +211,25 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
 
             tb_logger.flush()
 
+# TODO: Add logging of PSNR in addition to loss.
+def compute_psnr(im_0: torch.Tensor, im_1: torch.tensor) -> torch.Tensor:
+    mse = (im_0 - im_1) ** 2.0
+    mse = torch.sum(mse, dim=(1, 2, 3))
+    psnr = 10 * (1.0 / mse).log10()
+    return psnr.mean()
+
+
+def lab_to_rgb(image: torch.Tensor) -> torch.Tensor:
+    image = image.data.cpu().numpy()
+    N, C, H, W = image.shape
+    assert C == 3
+    image = np.transpose(image, (0, 2, 3, 1))
+    image = np.reshape(image, (N * H, W, C))
+    image = color.lab2rgb(image)
+    image = np.reshape(image, (N, H, W, C))
+    image = np.transpose(image, (0, 3, 1, 2))
+    return torch.from_numpy(image)
+
 
 def validate(val_loader, model, epoch=None, tb_logger=None):
     batch_time = AverageMeter()
@@ -241,6 +266,12 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         # how many iterations we have trained
         for key, value in logs.items():
             tb_logger.log_scalar(value, key, epoch + 1)
+
+        label = lab_to_rgb(img_gt)
+        pred = lab_to_rgb(output)
+        tb_logger.log_image(label, 'Label', epoch + 1)
+        tb_logger.log_image(pred, 'Prediction', epoch + 1)
+        tb_logger.log_image(img_input, 'Input', epoch + 1)
 
         tb_logger.flush()
 

@@ -1,6 +1,8 @@
 import os
-from tensorboardX import SummaryWriter
+
 import numpy as np
+import torchvision
+from tensorboardX import SummaryWriter
 
 
 class Logger:
@@ -20,7 +22,8 @@ class Logger:
         self._summ_writer.add_scalars('{}_{}'.format(group_name, phase), scalar_dict, step)
 
     def log_image(self, image, name, step):
-        assert (len(image.shape) == 3)  # [C, H, W]
+        if len(image.shape) == 4:
+          image = torchvision.utils.make_grid(image)
         self._summ_writer.add_image('{}'.format(name), image, step)
 
     def log_video(self, video_frames, name, step, fps=10):
