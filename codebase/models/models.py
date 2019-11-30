@@ -7,9 +7,10 @@ from .bilateral_net import BilateralColorNet
 
 
 class ColorModel(nn.Module):
-    def __init__(self, base_net, opt):
+    def __init__(self, net_enc, net_dec, opt):
         super(ColorModel, self).__init__()
-        self.base_net = base_net
+        self.encoder = net_enc
+        self.decoder = net_dec
         self.bilateral_net = BilateralColorNet()
 
         self.crit = nn.L1Loss()
@@ -17,12 +18,10 @@ class ColorModel(nn.Module):
     def forward(self, img_input, img_gt, is_inference=False):
         # img_input is (b, 3, h, w)
 
-        '''Commenting this out for now as Tim's model requires image as input'''
-        # feat = self.base_net(img_input)  # (b, self.base_net.fc_dim, h//16, w//16)
-
+        feat = self.decoder(self.encoder(img_input))  # (b, self.base_net.fc_dim, h//4, w//4)
         # tri-linear sampling
 
-        output = self.bilateral_net(img_input)
+        output = self.bilateral_net(img_input, feat)
 
         loss = self.crit(output, img_gt)
 
@@ -89,18 +88,16 @@ class Resnet(nn.Module):
         self.fc_dim = fc_dim
 
     def forward(self, x):
+        conv_out = []
 
         x = self.relu1(self.bn1(self.conv1(x)))
         x = self.relu2(self.bn2(self.conv2(x)))
         x = self.relu3(self.bn3(self.conv3(x)))
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        x = self.layer1(x); conv_out.append(x);
+        x = self.layer2(x); conv_out.append(x);
+        x = self.layer3(x); conv_out.append(x);
+        x = self.layer4(x); conv_out.append(x);
 
-        # x = self.avgpool(x)
-        # x = x.squeeze(3).squeeze(2)
-
-        return x
+        return conv_out

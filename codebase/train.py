@@ -13,7 +13,7 @@ import torchvision.transforms as transforms
 from skimage import color
 
 from dataset import ColorDataset
-from models import BilateralColorNet, ColorModel, ModelBuilder
+from models import BilateralColorNet, ColorModel, ModelBuilder, Decoder
 from utils import AverageMeter, Logger
 
 parser = argparse.ArgumentParser(description='PyTorch Colorization')
@@ -77,9 +77,10 @@ def main():
     print("=> creating model '{}'".format(args.arch))
 
     builder = ModelBuilder()
-    base_model = builder.build_network(arch=args.arch)
+    base_enc_model = builder.build_network(arch=args.arch)
+    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim)
 
-    model = ColorModel(base_model, args)
+    model = ColorModel(base_enc_model, base_dec_model, args)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -119,7 +120,7 @@ def main():
     )
     val_loader = torch.utils.data.DataLoader(
         dataset_val,
-        batch_size=args.batch_size, shuffle=True,
+        batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, drop_last=True,
         pin_memory=True
     )

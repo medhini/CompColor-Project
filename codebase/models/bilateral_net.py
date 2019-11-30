@@ -47,28 +47,30 @@ class BilateralColorNet(nn.Module):
 
         self.bilateral_depth = bilateral_depth
 
+        '''
         self.encoder = nn.Sequential(
             DownsampleBlock(1, 16),
             DownsampleBlock(16, 32),
             DownsampleBlock(32, 64),
             DownsampleBlock(64, 128),
         )
+        '''
         self.last_conv = nn.Sequential(
-            nn.Conv2d(128, 3 * bilateral_depth, kernel_size=1),
+            nn.Conv2d(256, 3 * bilateral_depth, kernel_size=1),
             nn.Tanh(),
         )
 
     def forward(  # pylint: disable=arguments-differ
-            self, image: torch.Tensor) -> torch.Tensor:
+            self, image: torch.Tensor, features: torch.Tensor) -> torch.Tensor:
         """Colorizes a grayscale image using a bilateral neural network.
 
         Args:
-            image (torch.Tensor): Input grayscale image of size [N, 1, H, W].
+            image (torch.Tensor): Input grayscale image of size [N, 3, H, W].
+            features (torch.Tensor): Input features of size [N, 256, H//4, W//4].
 
         Returns:
             torch.Tensor: Output color image of size [N, 3, H, W].
         """
-        features = self.encoder(image)
         features = self.last_conv(features)
         depth = image[:, 0, ...] * (self.bilateral_depth - 1)
         return self._trilinear_slice(features, depth)
