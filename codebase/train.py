@@ -212,10 +212,10 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
 
             tb_logger.flush()
 
-# TODO: Add logging of PSNR in addition to loss.
+
 def compute_psnr(im_0: torch.Tensor, im_1: torch.tensor) -> torch.Tensor:
     mse = (im_0 - im_1) ** 2.0
-    mse = torch.sum(mse, dim=(1, 2, 3))
+    mse = torch.mean(mse, dim=(1, 2, 3))
     psnr = 10 * (1.0 / mse).log10()
     return psnr.mean()
 
@@ -224,6 +224,7 @@ def lab_to_rgb(image: torch.Tensor) -> torch.Tensor:
     image = image.data.cpu().numpy()
     N, C, H, W = image.shape
     assert C == 3
+    image = image * 100
     image = np.transpose(image, (0, 2, 3, 1))
     image = np.reshape(image, (N * H, W, C))
     image = color.lab2rgb(image)
@@ -235,8 +236,7 @@ def lab_to_rgb(image: torch.Tensor) -> torch.Tensor:
 def validate(val_loader, model, epoch=None, tb_logger=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
-    acc_top1 = AverageMeter()
-    acc_top5 = AverageMeter()
+    psnr = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -251,6 +251,15 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         # measure accuracy and record loss
         losses.update(loss.item(), img_input.size(0))
 
+        output = torch.clamp(output, 0, 1)
+        img_gt = torch.clamp(img_gt, 0, 1)
+
+        gt_rgb = lab_to_rgb(img_gt)
+        out_rgb = lab_to_rgb(output)
+
+        _psnr = compute_psnr(gt_rgb, out_rgb)
+        psnr.update(_psnr.item(), img_input.size(0))
+
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -258,12 +267,14 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         if i % args.print_freq == 0 or i + 1 == len(val_loader):
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
-                   i, len(val_loader), batch_time=batch_time, loss=losses))
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                  'PSNR {psnr.val:.2f} ({psnr.avg:.2f})'.format(
+                   i, len(val_loader), batch_time=batch_time, loss=losses, psnr=psnr))
 
     if epoch is not None and tb_logger is not None:
         logs = OrderedDict()
         logs['Val_EpochLoss'] = losses.avg
+        logs['PSNR'] = psnr.avg
         # how many iterations we have trained
         for key, value in logs.items():
             tb_logger.log_scalar(value, key, epoch + 1)
