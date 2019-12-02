@@ -13,7 +13,7 @@ class ColorModel(nn.Module):
         self.decoder = net_dec
         self.bilateral_net = BilateralColorNet()
 
-        self.crit = nn.L1Loss()
+        self.crit = nn.SmoothL1Loss()
 
     def forward(self, luma, chroma, is_inference=False):
         # img_input is (b, 3, h, w)
