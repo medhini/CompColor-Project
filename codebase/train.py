@@ -13,7 +13,7 @@ import torchvision.transforms as transforms
 from skimage import color
 
 from dataset import ColorDataset
-from models import BilateralColorNet, ColorModel, ModelBuilder, Decoder
+from models import BilateralColorNet, ColorModel, Decoder, ModelBuilder
 from utils import AverageMeter, Logger
 
 parser = argparse.ArgumentParser(description='PyTorch Colorization')
@@ -173,16 +173,16 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
     model.train()
 
     end = time.time()
-    for i, (img_input, img_gt) in enumerate(train_loader):
+    for i, (luma, chroma) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
 
         # compute output
-        loss = model(img_input, img_gt)
+        loss = model(luma, chroma)
         loss = loss.mean()
 
         # measure accuracy and record loss
-        losses.update(loss.item(), img_input.size(0))
+        losses.update(loss.item(), luma.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -220,11 +220,19 @@ def compute_psnr(im_0: torch.Tensor, im_1: torch.tensor) -> torch.Tensor:
     return psnr.mean()
 
 
-def lab_to_rgb(image: torch.Tensor) -> torch.Tensor:
-    image = image.data.cpu().numpy()
+def lab_to_rgb(luma: torch.Tensor, chroma: torch.Tensor) -> torch.Tensor:
+    assert luma.shape[1] == 1
+    assert chroma.shape[1] == 2
+
+    luma = luma.data.cpu().numpy()
+    chroma = chroma.data.cpu().numpy()
+
+    luma = np.clip(luma * 100.0, 0.0, 100.0)
+    chroma = np.clip(chroma * 110.0, -110.0, 110.0)
+
+    image = np.concatenate((luma, chroma), axis=1)
     N, C, H, W = image.shape
-    assert C == 3
-    image = image * 100
+
     image = np.transpose(image, (0, 2, 3, 1))
     image = np.reshape(image, (N * H, W, C))
     image = color.lab2rgb(image)
@@ -242,23 +250,20 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
     model.eval()
 
     end = time.time()
-    for i, (img_input, img_gt) in enumerate(val_loader):
+    for i, (luma, chroma) in enumerate(val_loader):
         # compute output
         with torch.no_grad():
-            loss, output = model(img_input, img_gt, is_inference=True)
+            loss, output = model(luma, chroma, is_inference=True)
             loss = loss.mean()
 
         # measure accuracy and record loss
-        losses.update(loss.item(), img_input.size(0))
+        losses.update(loss.item(), luma.size(0))
 
-        output = torch.clamp(output, 0, 1)
-        img_gt = torch.clamp(img_gt, 0, 1)
-
-        gt_rgb = lab_to_rgb(img_gt)
-        out_rgb = lab_to_rgb(output)
+        gt_rgb = lab_to_rgb(luma, chroma)
+        out_rgb = lab_to_rgb(luma, output)
 
         _psnr = compute_psnr(gt_rgb, out_rgb)
-        psnr.update(_psnr.item(), img_input.size(0))
+        psnr.update(_psnr.item(), luma.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -279,11 +284,9 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         for key, value in logs.items():
             tb_logger.log_scalar(value, key, epoch + 1)
 
-        label = lab_to_rgb(img_gt)
-        pred = lab_to_rgb(output)
-        tb_logger.log_image(label, 'Label', epoch + 1)
-        tb_logger.log_image(pred, 'Prediction', epoch + 1)
-        tb_logger.log_image(img_input, 'Input', epoch + 1)
+        tb_logger.log_image(gt_rgb, 'Label', epoch + 1)
+        tb_logger.log_image(out_rgb, 'Prediction', epoch + 1)
+        tb_logger.log_image(luma, 'Input', epoch + 1)
 
         tb_logger.flush()
 

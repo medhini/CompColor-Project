@@ -15,15 +15,16 @@ class ColorModel(nn.Module):
 
         self.crit = nn.L1Loss()
 
-    def forward(self, img_input, img_gt, is_inference=False):
+    def forward(self, luma, chroma, is_inference=False):
         # img_input is (b, 3, h, w)
 
-        feat = self.decoder(self.encoder(img_input))  # (b, self.base_net.fc_dim, h//4, w//4)
+        inputs = luma.repeat(1, 3, 1, 1)
+        feat = self.decoder(self.encoder(inputs))  # (b, self.base_net.fc_dim, h//4, w//4)
         # tri-linear sampling
 
-        output = self.bilateral_net(img_input, feat)
+        output = self.bilateral_net(luma, feat)
 
-        loss = self.crit(output, img_gt)
+        loss = self.crit(output, chroma)
 
         if is_inference:
             return loss, output

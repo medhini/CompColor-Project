@@ -56,7 +56,7 @@ class BilateralColorNet(nn.Module):
         )
         '''
         self.last_conv = nn.Sequential(
-            nn.Conv2d(256, 3 * bilateral_depth, kernel_size=1),
+            nn.Conv2d(256, 2 * bilateral_depth, kernel_size=1),
             nn.Tanh(),
         )
 
@@ -65,11 +65,11 @@ class BilateralColorNet(nn.Module):
         """Colorizes a grayscale image using a bilateral neural network.
 
         Args:
-            image (torch.Tensor): Input grayscale image of size [N, 3, H, W].
+            image (torch.Tensor): Input grayscale image of size [N, 1, H, W].
             features (torch.Tensor): Input features of size [N, 256, H//4, W//4].
 
         Returns:
-            torch.Tensor: Output color image of size [N, 3, H, W].
+            torch.Tensor: Output chroma image of size [N, 2, H, W].
         """
         features = self.last_conv(features)
         depth = image[:, 0, ...] * (self.bilateral_depth - 1)
@@ -81,11 +81,11 @@ class BilateralColorNet(nn.Module):
         """Trilinearly slices input features according to depth map.
 
         Args:
-            features (torch.Tensor): Input features of size [N, 3 * D, H, W].
+            features (torch.Tensor): Input features of size [N, 2 * D, H, W].
             depth (torch.Tensor): Depth map of size [N, H', W'].
 
         Returns:
-            torch.Tensor: Output image of size [N, 3, H', W'].
+            torch.Tensor: Output image of size [N, 2, H', W'].
         """
         # TODO: Use F.grid_sample if trilinear sampling is ever added.
         # https://github.com/pytorch/pytorch/issues/5565
@@ -95,8 +95,8 @@ class BilateralColorNet(nn.Module):
         features = F.interpolate(features, size=(H_prime, W_prime),
                                  mode='bilinear', align_corners=False)
 
-        # Adds channel dim of size 3 and depth dim of size 1 to depth map.
-        depth = torch.stack([depth] * 3, dim=1)
+        # Adds channel dim of size 2 and depth dim of size 1 to depth map.
+        depth = torch.stack([depth] * 2, dim=1)
         depth = depth[:, :, None, :, :]
 
         # Gets two depths to interpolate between at each position.
@@ -105,7 +105,7 @@ class BilateralColorNet(nn.Module):
         weight = depth % 1.0
 
         # Linearly interpolates between features at the two depths.
-        features = features.view(N, 3, -1, H_prime, W_prime)
+        features = features.view(N, 2, -1, H_prime, W_prime)
         features_0 = torch.gather(features, 2, depth_0)
         features_1 = torch.gather(features, 2, depth_1)
         # TODO: Use torch.lerp once derivative of 'weight' is released.

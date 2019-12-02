@@ -30,16 +30,14 @@ class ColorDataset(Dataset):
         if self.transform:
             rgb_img = self.transform(rgb_img)
 
-        rgb_img = np.asarray(rgb_img) / 255.0
-        # TODO: We need the input to be in LAB space, but it is RGB. Adding the
-        # line below causes a sync issue with pytorch for some reason?
-        lab_img = color.rgb2lab(rgb_img)
-        # Note: divided by 100?
-        lab_img = lab_img / 100.
-        lab_img = torch.from_numpy(lab_img).permute(2, 0, 1).float()
-        gray_img = lab_img[0:1, ...].repeat(3, 1, 1)  # 3 channel gray?
+        rgb_img = np.array(rgb_img)
+        lab_img = color.rgb2lab(rgb_img).astype(np.float32)
+        lab_img = transforms.ToTensor()(lab_img)
 
-        return gray_img, lab_img
+        luma = lab_img[0:1, ...] / 100.0    # [0, 1]
+        chroma = lab_img[1:3, ...] / 110.0  # [-1, 1]
+        return luma, chroma
+
 
 if __name__=='__main__':
 
