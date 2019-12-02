@@ -42,7 +42,8 @@ class DownsampleBlock(nn.Module):
 class BilateralColorNet(nn.Module):
     """Bilateral neural network for image colorization."""
 
-    def __init__(self, bilateral_depth: int = 8) -> None:
+    def __init__(self, num_input_features: int = 256,
+                 bilateral_depth: int = 8) -> None:
         super(BilateralColorNet, self).__init__()
 
         self.bilateral_depth = bilateral_depth
@@ -56,7 +57,7 @@ class BilateralColorNet(nn.Module):
         )
         '''
         self.last_conv = nn.Sequential(
-            nn.Conv2d(256, 2 * bilateral_depth, kernel_size=1),
+            nn.Conv2d(num_input_features, 2 * bilateral_depth, kernel_size=1),
             nn.Tanh(),
         )
 

@@ -6,6 +6,7 @@ from torch import nn
 class Decoder(nn.Module):
     def __init__(self, fc_dim=2048, fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256):
         super(Decoder, self).__init__()
+        self.fpn_dim = fpn_dim
 
         self.in_conv = nn.Sequential(
                 nn.Conv2d(fc_dim, fpn_dim, kernel_size=1, bias=False),
