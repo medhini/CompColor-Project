@@ -47,6 +47,10 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--use_bilateral', default=True, type=bool,
+                    help='bilateral network')
+parser.add_argument('--scale', default=4, type=int, 
+                    help='scale by which to downsample')                   
 
 parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
@@ -80,7 +84,7 @@ def main():
     base_enc_model = builder.build_network(arch=args.arch)
     base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim)
 
-    model = ColorModel(base_enc_model, base_dec_model, args)
+    model = ColorModel(base_enc_model, base_dec_model, use_bilateral=args.use_bilateral)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -178,7 +182,7 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
         data_time.update(time.time() - end)
 
         # compute output
-        loss = model(luma, chroma)
+        loss = model(luma, chroma, scale=args.scale)
         loss = loss.mean()
 
         # measure accuracy and record loss
@@ -253,7 +257,7 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
     for i, (luma, chroma) in enumerate(val_loader):
         # compute output
         with torch.no_grad():
-            loss, output = model(luma, chroma, is_inference=True)
+            loss, output = model(luma, chroma, is_inference=True, scale=args.scale)
             loss = loss.mean()
 
         # measure accuracy and record loss
