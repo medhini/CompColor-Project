@@ -8,12 +8,14 @@ from PIL import Image
 from skimage import color
 from torch.utils.data import DataLoader, Dataset
 
+import colorgram
 
 class ColorDataset(Dataset):
-    def __init__(self, root, split='train', transform=None):
+    def __init__(self, root, split='train', transform=None, use_pallet=False):
         self.root = root
         self.split = split
         self.transform = transform
+        self.use_pallet = use_pallet
 
         self.files = {}
         self.files[self.split] = os.listdir(self.root+'/'+self.split)
@@ -36,8 +38,23 @@ class ColorDataset(Dataset):
 
         luma = lab_img[0:1, ...] / 100.0    # [0, 1]
         chroma = lab_img[1:3, ...] / 110.0  # [-1, 1]
-        return luma, chroma
 
+        #extracting pallet using 'https://github.com/obskyr/colorgram.py'. pip install colorgram.py
+        if self.use_pallet:
+            colors = colorgram.extract(filename, 6) #extracting 6 main colors
+            pallet = []
+            for clr in colors:
+                rgb = np.asarray(clr.rgb).reshape((1,1,3))
+                lab = color.rgb2lab(rgb).astype(np.float32)
+                lab = transforms.ToTensor()(lab)
+                ab = lab[1:3, ...] / 110.0
+                pallet.append(ab)
+
+            pallet = torch.stack(pallet)
+
+            return luma, chroma, pallet
+        else:
+            return luma, chroma
 
 if __name__=='__main__':
 

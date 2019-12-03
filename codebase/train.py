@@ -47,6 +47,8 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('-up', '--use_pallet', default=False, type=bool,
+                    help='condition based on gt target pallet')
 
 parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
@@ -78,7 +80,13 @@ def main():
 
     builder = ModelBuilder()
     base_enc_model = builder.build_network(arch=args.arch)
-    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256)
+
+    if args.use_pallet:
+        base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256, 
+                            use_pallet=args.use_pallet)
+    else:
+        base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_inplanes=(256, 512, 1024, 2048, 32),
+                            fpn_dim=256, use_pallet=args.use_pallet)
 
     model = ColorModel(base_enc_model, base_dec_model, args)
 
@@ -106,10 +114,10 @@ def main():
                     ])
 
     dataset_train = ColorDataset(args.root, split="train",
-                    transform=transform)
+                    transform=transform, use_pallet=args.use_pallet)
 
     dataset_val = ColorDataset(args.root, split="val",
-                    transform=transform)
+                    transform=transform, use_pallet=args.use_pallet)
 
     # create training and validation loader
     train_loader = torch.utils.data.DataLoader(
@@ -174,12 +182,19 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
     model.train()
 
     end = time.time()
-    for i, (luma, chroma) in enumerate(train_loader):
+    for i, contents in enumerate(train_loader):
+        #reading pallet if use_pallet is true
+        if args.use_pallet:
+            luma, chroma, pallet = contents
+        else:
+            luma, chroma = contents
+            pallet = None
+        
         # measure data loading time
         data_time.update(time.time() - end)
 
         # compute output
-        loss = model(luma, chroma)
+        loss = model(luma, chroma, pallet=pallet)
         loss = loss.mean()
 
         # measure accuracy and record loss
@@ -251,10 +266,16 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
     model.eval()
 
     end = time.time()
-    for i, (luma, chroma) in enumerate(val_loader):
+    for i, contents in enumerate(val_loader):
+        if args.use_pallet:
+            luma, chroma, pallet = contents
+        else:
+            luma, chroma = contents
+            pallet = None
+
         # compute output
         with torch.no_grad():
-            loss, output = model(luma, chroma, is_inference=True)
+            loss, output = model(luma, chroma, is_inference=True, pallet=None)
             loss = loss.mean()
 
         # measure accuracy and record loss

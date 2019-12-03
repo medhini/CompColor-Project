@@ -1,16 +1,30 @@
 import torch
 from torch import nn
 
+class PalletEncoder(nn.Module):
+    def __init__(self):
+        super(PalletEncoder, self).__init__()
+
+        self.pe1 = nn.Sequential(nn.Linear(12, 24), nn.BatchNorm1d(24), nn.ReLU())
+        self.pe2 = nn.Sequential(nn.Linear(24, 32), nn.BatchNorm1d(32), nn.ReLU())
+
+    def forward(self, pallet):
+        x = pallet.view(-1, 12)
+        x = self.pe1(x)
+        x = self.pe2(x)
+
+        return x
 
 # upernet
 class Decoder(nn.Module):
     def __init__(self, fc_dim=2048, pool_scales=(1, 2, 3, 6),
-            fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256):
+            fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256, use_pallet=False):
         super(Decoder, self).__init__()
 
         # PPM Module
         self.ppm_pooling = []
         self.ppm_conv = []
+        self.use_pallet = use_pallet
 
         for scale in pool_scales:
             self.ppm_pooling.append(nn.AdaptiveAvgPool2d(scale))
@@ -45,7 +59,10 @@ class Decoder(nn.Module):
             nn.Conv2d(fpn_dim, fpn_dim, kernel_size=1)
         )
 
-    def forward(self, conv_out):
+        if self.use_pallet:
+            self.encode_pallet = PalletEncoder()
+
+    def forward(self, conv_out, pallet=None):
         conv5 = conv_out[-1]
 
         input_size = conv5.size()
@@ -79,6 +96,14 @@ class Decoder(nn.Module):
                 output_size,
                 mode='bilinear', align_corners=False))
         fusion_out = torch.cat(fusion_list, 1)
+
+        if self.use_pallet:
+            pe = self.encode_pallet(pallet)
+            pe = torch.unsqueeze(pe, 2)
+            pe = torch.unsqueeze(pe, 3)
+            pe = pe.repeat(1,1,fusion_out.shape[2], fusion_out.shape[3])
+            x = torch.cat((fusion_out, pe), 1)
+
         x = self.conv_last(fusion_out)
 
         return x
