@@ -52,7 +52,7 @@ class ColorDataset(Dataset):
                 pallet.append(ab)
             
             while len(pallet) < 6:
-                pallet.append(torch.Tensor([0.0,0.0]))
+                pallet.append(torch.zeros((2,1,1)))
 
             pallet = torch.stack(pallet)
 
