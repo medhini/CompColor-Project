@@ -3,23 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Conv(nn.Module):
-    """3x3 conv layer followed by leaky ReLU."""
-
-    def __init__(self, num_in_channels: int, num_out_channels: int) -> None:
-        super(Conv, self).__init__()
-
-        self.conv = nn.Sequential(
-            nn.Conv2d(num_in_channels, num_out_channels, kernel_size=3,
-                      padding=1),
-            nn.LeakyReLU(inplace=True),
-        )
-
-    def forward(  # pylint: disable=arguments-differ
-        self, features: torch.Tensor) -> torch.Tensor:
-        return self.conv(features)
-
-
 class DownsampleBlock(nn.Module):
     """Downsample block containing multiple convs followed by a downsample."""
 
@@ -45,18 +28,8 @@ class BilateralColorNet(nn.Module):
     def __init__(self, num_input_features: int = 256,
                  bilateral_depth: int = 8) -> None:
         super(BilateralColorNet, self).__init__()
-
         self.bilateral_depth = bilateral_depth
-
-        '''
-        self.encoder = nn.Sequential(
-            DownsampleBlock(1, 16),
-            DownsampleBlock(16, 32),
-            DownsampleBlock(32, 64),
-            DownsampleBlock(64, 128),
-        )
-        '''
-        self.last_conv = nn.Sequential(
+        self.conv = nn.Sequential(
             nn.Conv2d(num_input_features, 2 * bilateral_depth, kernel_size=1),
             nn.Tanh(),
         )
@@ -72,7 +45,7 @@ class BilateralColorNet(nn.Module):
         Returns:
             torch.Tensor: Output chroma image of size [N, 2, H, W].
         """
-        features = self.last_conv(features)
+        features = self.conv(features)
         depth = image[:, 0, ...] * (self.bilateral_depth - 1)
         return self._trilinear_slice(features, depth)
 

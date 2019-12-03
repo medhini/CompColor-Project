@@ -7,7 +7,7 @@ from .bilateral_net import BilateralColorNet
 
 
 class ColorModel(nn.Module):
-    def __init__(self, net_enc, net_dec, use_bilateral=True,
+    def __init__(self, net_enc, net_dec, use_bilinear=False,
                  learn_guide=False, bilateral_depth=8, num_features=256):
         super(ColorModel, self).__init__()
         self.encoder = net_enc
@@ -24,23 +24,24 @@ class ColorModel(nn.Module):
             resnet.BasicBlock(num_features, num_features),
         )
 
-        if use_bilateral:
+        if use_bilinear:
+            self.direct_net = nn.Sequential(
+                nn.Conv2d(num_features, 2, kernel_size=1),
+                nn.Tanh(),
+            )
+        else:
             self.bilateral_net = BilateralColorNet(
                 num_input_features=num_features,
                 bilateral_depth=bilateral_depth)
             if learn_guide:
                 self.guide_net = nn.Sequential(
-                    nn.Conv2d(1, 64, kernel_size=3),
+                    nn.Conv2d(1, 64, kernel_size=3, padding=1),
                     nn.ReLU(),
                     resnet.BasicBlock(64, 64),
-                    nn.Conv2d(64, 1, kernel_size=3),
+                    nn.Conv2d(64, 1, kernel_size=1),
                     nn.Sigmoid(),
                 )
-        else:
-            self.direct_net = nn.Sequential(
-                nn.Conv2d(num_features, 2, kernel_size=1),
-                nn.Tanh(),
-            )
+
 
     def forward(self, luma: torch.Tensor, chroma: torch.Tensor,
                 is_inference: bool = False, scale: int = 4):
@@ -79,6 +80,8 @@ class ColorModel(nn.Module):
             output = self.bilateral_net(guide, feat)
         else:
             output = self.direct_net(feat)
+            output = F.interpolate(output, size=luma.shape[2:4],
+                                   mode='bilinear', align_corners=False)
 
         loss = self.crit(output, chroma)
 

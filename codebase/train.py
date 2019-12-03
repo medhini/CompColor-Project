@@ -47,11 +47,12 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('--use_bilateral', default=True, type=bool,
-                    help='bilateral network')
+parser.add_argument('--use_bilinear', default=False, action='store_true',
+                    help='use a bilinear upsample rather than a bilateral network')
+parser.add_argument('--learn_guide', default=False, action='store_true',
+                    help='whether to learn bilateral guidance map or use luma')
 parser.add_argument('--scale', default=4, type=int,
                     help='scale by which to downsample')
-
 parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--print_freq', '-p', default=20, type=int,
@@ -84,7 +85,9 @@ def main():
     base_enc_model = builder.build_network(arch=args.arch)
     base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256)
 
-    model = ColorModel(base_enc_model, base_dec_model, use_bilateral=args.use_bilateral)
+    model = ColorModel(
+        base_enc_model, base_dec_model, use_bilinear=args.use_bilinear,
+        learn_guide=args.learn_guide)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -258,7 +261,8 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
     for i, (luma, chroma) in enumerate(val_loader):
         # compute output
         with torch.no_grad():
-            loss, output = model(luma, chroma, is_inference=True, scale=args.scale)
+            loss, output = model(
+                    luma, chroma, is_inference=True, scale=args.scale)
             loss = loss.mean()
 
         # measure accuracy and record loss
