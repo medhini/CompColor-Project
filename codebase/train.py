@@ -275,7 +275,7 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
 
         # compute output
         with torch.no_grad():
-            loss, output = model(luma, chroma, is_inference=True, pallet=None)
+            loss, output = model(luma, chroma, is_inference=True, pallet=pallet)
             loss = loss.mean()
 
         # measure accuracy and record loss
