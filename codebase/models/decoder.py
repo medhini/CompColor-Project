@@ -2,15 +2,20 @@ import torch
 from torch import nn
 
 class PalletEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, p_dim_in=12, p_dim_out=32):
         super(PalletEncoder, self).__init__()
 
+        self.p_dim_in = p_dim_in
+        self.p_dim_out = p_dim_out
+
         #scale up pallet to 32 dim
-        self.pe1 = nn.Sequential(nn.Linear(12, 24), nn.BatchNorm1d(24), nn.ReLU())
-        self.pe2 = nn.Sequential(nn.Linear(24, 32), nn.BatchNorm1d(32), nn.ReLU())
+        self.pe1 = nn.Sequential(nn.Linear(self.p_dim_in, 24), 
+                                nn.BatchNorm1d(24), nn.ReLU())
+        self.pe2 = nn.Sequential(nn.Linear(24, self.p_dim_out), 
+                                nn.BatchNorm1d(self.p_dim_out), nn.ReLU())
 
     def forward(self, pallet):
-        x = pallet.view(-1, 12) #(b, 12)
+        x = pallet.view(-1, self.p_dim_in) #(b, 12)
         x = self.pe1(x) #(b, 24)
         x = self.pe2(x) #(b, 32)
 
@@ -19,7 +24,8 @@ class PalletEncoder(nn.Module):
 # upernet
 class Decoder(nn.Module):
     def __init__(self, fc_dim=2048, pool_scales=(1, 2, 3, 6),
-            fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256, use_pallet=False):
+            fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256, use_pallet=False,
+            p_dim_in=12, p_dim_out=32):
         super(Decoder, self).__init__()
 
         # PPM Module
@@ -61,9 +67,9 @@ class Decoder(nn.Module):
         )
 
         if self.use_pallet:
-            self.encode_pallet = PalletEncoder()
+            self.encode_pallet = PalletEncoder(p_dim_in, p_dim_out)
             self.fuse_pallet = nn.Sequential(
-                    conv3x3_bn_relu(fpn_dim+32, fpn_dim, 1),
+                    conv3x3_bn_relu(fpn_dim+p_dim_out, fpn_dim, 1),
                     nn.Conv2d(fpn_dim, fpn_dim, kernel_size=1)
                 )
 
