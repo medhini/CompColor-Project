@@ -27,10 +27,10 @@ class ColorDataset(Dataset):
         """Returns gray scale and RGB images"""
 
         filename = os.path.join(self.root, self.split, self.files[self.split][idx])
-        rgb_img = Image.open(filename).convert('RGB')
+        rgb_img_orig = Image.open(filename).convert('RGB')
 
         if self.transform:
-            rgb_img = self.transform(rgb_img)
+            rgb_img = self.transform(rgb_img_orig)
 
         rgb_img = np.array(rgb_img)
         lab_img = color.rgb2lab(rgb_img).astype(np.float32)
@@ -41,7 +41,8 @@ class ColorDataset(Dataset):
 
         #extracting pallet using 'https://github.com/obskyr/colorgram.py'. pip install colorgram.py
         if self.use_pallet:
-            colors = colorgram.extract(filename, 6) #extracting 6 main colors
+            rgb_img_small = rgb_img_orig.resize((56,56))
+            colors = colorgram.extract(rgb_img_small, 6) #extracting 6 main colors
 
             pallet = []
             for clr in colors:

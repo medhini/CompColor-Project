@@ -62,6 +62,10 @@ class Decoder(nn.Module):
 
         if self.use_pallet:
             self.encode_pallet = PalletEncoder()
+            self.fuse_pallet = nn.Sequential(
+                    conv3x3_bn_relu(fpn_dim+32, fpn_dim, 1),
+                    nn.Conv2d(fpn_dim, fpn_dim, kernel_size=1)
+                )
 
     def forward(self, conv_out, pallet=None):
         conv5 = conv_out[-1]
@@ -97,18 +101,17 @@ class Decoder(nn.Module):
                 output_size,
                 mode='bilinear', align_corners=False))
         fusion_out = torch.cat(fusion_list, 1)
+        x = self.conv_last(fusion_out)
 
         if self.use_pallet:
             pe = self.encode_pallet(pallet)
             pe = torch.unsqueeze(pe, 2)
             pe = torch.unsqueeze(pe, 3)
-            pe = pe.repeat(1,1,fusion_out.shape[2], fusion_out.shape[3]) #(b, 32, 56, 56)
-            x = torch.cat((fusion_out, pe), 1)
-
-        x = self.conv_last(fusion_out)
+            pe = pe.repeat(1, 1, x.shape[2], x.shape[3]) #(b, 32, 56, 56)
+            x = torch.cat((x, pe), 1)
+            x = self.fuse_pallet(x)
 
         return x
-
 
 def conv3x3_bn_relu(in_planes, out_planes, stride=1):
     """ 3x3 convolution + BN + relu """
