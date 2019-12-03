@@ -80,14 +80,8 @@ def main():
 
     builder = ModelBuilder()
     base_enc_model = builder.build_network(arch=args.arch)
-
-    if args.use_pallet:
-        base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256, 
+    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256, 
                             use_pallet=args.use_pallet)
-    else:
-        base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_inplanes=(256, 512, 1024, 2048, 32),
-                            fpn_dim=256, use_pallet=args.use_pallet)
-
     model = ColorModel(base_enc_model, base_dec_model, args)
 
     # optionally resume from a checkpoint
