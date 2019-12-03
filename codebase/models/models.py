@@ -12,7 +12,7 @@ class ColorModel(nn.Module):
         super(ColorModel, self).__init__()
         self.encoder = net_enc
         self.decoder = net_dec
-        self.crit = nn.L1Loss()
+        self.crit = nn.SmoothL1Loss()
 
         self.bilateral_net = None
         self.guide_net = None

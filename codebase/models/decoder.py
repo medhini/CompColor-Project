@@ -4,15 +4,25 @@ from torch import nn
 
 # upernet
 class Decoder(nn.Module):
-    def __init__(self, fc_dim=2048, fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256):
+    def __init__(self, fc_dim=2048, pool_scales=(1, 2, 3, 6),
+            fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256):
         super(Decoder, self).__init__()
         self.fpn_dim = fpn_dim
 
-        self.in_conv = nn.Sequential(
-                nn.Conv2d(fc_dim, fpn_dim, kernel_size=1, bias=False),
-                nn.BatchNorm2d(fpn_dim),
+        # PPM Module
+        self.ppm_pooling = []
+        self.ppm_conv = []
+
+        for scale in pool_scales:
+            self.ppm_pooling.append(nn.AdaptiveAvgPool2d(scale))
+            self.ppm_conv.append(nn.Sequential(
+                nn.Conv2d(fc_dim, 512, kernel_size=1, bias=False),
+                nn.BatchNorm2d(512),
                 nn.ReLU(inplace=True)
-            )
+            ))
+        self.ppm_pooling = nn.ModuleList(self.ppm_pooling)
+        self.ppm_conv = nn.ModuleList(self.ppm_conv)
+        self.ppm_last_conv = conv3x3_bn_relu(fc_dim + len(pool_scales)*512, fpn_dim, 1)
 
         # FPN Module
         self.fpn_in = []
@@ -40,9 +50,17 @@ class Decoder(nn.Module):
         conv5 = conv_out[-1]
 
         input_size = conv5.size()
-        f = self.in_conv(conv5)
+        ppm_out = [conv5]
+        for pool_scale, pool_conv in zip(self.ppm_pooling, self.ppm_conv):
+            ppm_out.append(pool_conv(nn.functional.interpolate(
+                pool_scale(conv5),
+                (input_size[2], input_size[3]),
+                mode='bilinear', align_corners=False)))
+        ppm_out = torch.cat(ppm_out, 1)
+        f = self.ppm_last_conv(ppm_out)
 
         fpn_feature_list = [f]
+
         for i in reversed(range(len(conv_out) - 1)):
             conv_x = conv_out[i]
             conv_x = self.fpn_in[i](conv_x)  # lateral branch

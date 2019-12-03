@@ -31,17 +31,17 @@ parser.add_argument('--root', '-r', default='/shared/timbrooks/datasets/mirflick
                     help='data root directory')
 parser.add_argument('--img_size', '-size', default=[224,224], type=int,
                     help='resize image to this size')
-parser.add_argument('--epochs', default=50, type=int, metavar='N',
+parser.add_argument('--epochs', default=25, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--size', default=224, type=int, metavar='N',
                     help='primary image input size')
 parser.add_argument('--start_epoch', default=None, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--batch_size', '-b', default=64, type=int,
+parser.add_argument('--batch_size', '-b', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 64)')
-parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate')
-parser.add_argument('--lr_steps', default=[35, 45], type=float, nargs="+",
+parser.add_argument('--lr_steps', default=[10, 20, 25], type=float, nargs="+",
                     metavar='LRSteps', help='epochs to decay learning rate by 10')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
@@ -49,8 +49,8 @@ parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 parser.add_argument('--use_bilateral', default=True, type=bool,
                     help='bilateral network')
-parser.add_argument('--scale', default=4, type=int, 
-                    help='scale by which to downsample')                   
+parser.add_argument('--scale', default=4, type=int,
+                    help='scale by which to downsample')
 
 parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
@@ -82,7 +82,7 @@ def main():
 
     builder = ModelBuilder()
     base_enc_model = builder.build_network(arch=args.arch)
-    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim)
+    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256)
 
     model = ColorModel(base_enc_model, base_dec_model, use_bilateral=args.use_bilateral)
 
@@ -148,21 +148,22 @@ def main():
         # train for one epoch
         train(train_loader, model, optimizer, epoch, tb_logger)
 
-        # evaluate on validation set
-        loss = validate(val_loader, model, epoch, tb_logger)
+        if (epoch + 1) % 5 == 0:
+            # evaluate on validation set
+            loss = validate(val_loader, model, epoch, tb_logger)
 
-        # remember best loss and save checkpoint
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
-        save_checkpoint(
-            {
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.module.state_dict(),
-                'best_loss': best_loss,
-            },
-            is_best,
-            os.path.join(args.ckpt, args.arch.lower() + '_{}'.format(args.logname)))
+            # remember best loss and save checkpoint
+            is_best = loss < best_loss
+            best_loss = min(loss, best_loss)
+            save_checkpoint(
+                {
+                    'epoch': epoch + 1,
+                    'arch': args.arch,
+                    'state_dict': model.module.state_dict(),
+                    'best_loss': best_loss,
+                },
+                is_best,
+                os.path.join(args.ckpt, args.arch.lower() + '_{}'.format(args.logname)))
 
 
 def train(train_loader, model, optimizer, epoch, tb_logger=None):
