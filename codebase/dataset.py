@@ -42,6 +42,7 @@ class ColorDataset(Dataset):
         #extracting pallet using 'https://github.com/obskyr/colorgram.py'. pip install colorgram.py
         if self.use_pallet:
             colors = colorgram.extract(filename, 6) #extracting 6 main colors
+
             pallet = []
             for clr in colors:
                 rgb = np.asarray(clr.rgb).reshape((1,1,3))
@@ -49,6 +50,9 @@ class ColorDataset(Dataset):
                 lab = transforms.ToTensor()(lab)
                 ab = lab[1:3, ...] / 110.0
                 pallet.append(ab)
+            
+            while len(pallet) < 6:
+                pallet.append(torch.Tensor([0.0,0.0]))
 
             pallet = torch.stack(pallet)
 

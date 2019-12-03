@@ -5,13 +5,14 @@ class PalletEncoder(nn.Module):
     def __init__(self):
         super(PalletEncoder, self).__init__()
 
+        #scale up pallet to 32 dim
         self.pe1 = nn.Sequential(nn.Linear(12, 24), nn.BatchNorm1d(24), nn.ReLU())
         self.pe2 = nn.Sequential(nn.Linear(24, 32), nn.BatchNorm1d(32), nn.ReLU())
 
     def forward(self, pallet):
-        x = pallet.view(-1, 12)
-        x = self.pe1(x)
-        x = self.pe2(x)
+        x = pallet.view(-1, 12) #(b, 12)
+        x = self.pe1(x) #(b, 24)
+        x = self.pe2(x) #(b, 32)
 
         return x
 
@@ -101,7 +102,7 @@ class Decoder(nn.Module):
             pe = self.encode_pallet(pallet)
             pe = torch.unsqueeze(pe, 2)
             pe = torch.unsqueeze(pe, 3)
-            pe = pe.repeat(1,1,fusion_out.shape[2], fusion_out.shape[3])
+            pe = pe.repeat(1,1,fusion_out.shape[2], fusion_out.shape[3]) #(b, 32, 56, 56)
             x = torch.cat((fusion_out, pe), 1)
 
         x = self.conv_last(fusion_out)
