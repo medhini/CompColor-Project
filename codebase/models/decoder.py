@@ -27,6 +27,7 @@ class Decoder(nn.Module):
             fpn_inplanes=(256, 512, 1024, 2048), fpn_dim=256, use_pallet=False,
             p_dim_in=12, p_dim_out=32):
         super(Decoder, self).__init__()
+        self.fpn_dim = fpn_dim
 
         # PPM Module
         self.ppm_pooling = []

@@ -39,7 +39,7 @@ parser.add_argument('--start_epoch', default=None, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--batch_size', '-b', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 64)')
-parser.add_argument('--lr', '--learning-rate', default=1, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--lr_steps', default=[10, 20, 25], type=float, nargs="+",
                     metavar='LRSteps', help='epochs to decay learning rate by 10')
@@ -50,6 +50,12 @@ parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
 parser.add_argument('-up', '--use_pallet', default=False, type=bool,
                     help='condition based on gt target pallet')
 
+parser.add_argument('--use_bilinear', default=False, action='store_true',
+                    help='use a bilinear upsample rather than a bilateral network')
+parser.add_argument('--learn_guide', default=False, action='store_true',
+                    help='whether to learn bilateral guidance map or use luma')
+parser.add_argument('--scale', default=4, type=int,
+                    help='scale by which to downsample')
 parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--print_freq', '-p', default=20, type=int,
@@ -80,9 +86,12 @@ def main():
 
     builder = ModelBuilder()
     base_enc_model = builder.build_network(arch=args.arch)
-    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256, 
-                            use_pallet=args.use_pallet)
-    model = ColorModel(base_enc_model, base_dec_model, args)
+    base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256,
+                             use_pallet=args.use_pallet)
+
+    model = ColorModel(
+        base_enc_model, base_dec_model, use_bilinear=args.use_bilinear,
+        learn_guide=args.learn_guide)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -183,12 +192,12 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
         else:
             luma, chroma = contents
             pallet = None
-        
+
         # measure data loading time
         data_time.update(time.time() - end)
 
         # compute output
-        loss = model(luma, chroma, pallet=pallet)
+        loss = model(luma, chroma, scale=args.scale, pallet=pallet)
         loss = loss.mean()
 
         # measure accuracy and record loss
@@ -269,7 +278,8 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
 
         # compute output
         with torch.no_grad():
-            loss, output = model(luma, chroma, is_inference=True, pallet=pallet)
+            loss, output = model(luma, chroma, is_inference=True,
+                                 scale=args.scale, pallet=pallet)
             loss = loss.mean()
 
         # measure accuracy and record loss
