@@ -1,6 +1,7 @@
 import argparse
 import os
 
+import colorgram
 import numpy as np
 import torch
 import torchvision.transforms as transforms
@@ -8,7 +9,6 @@ from PIL import Image
 from skimage import color
 from torch.utils.data import DataLoader, Dataset
 
-import colorgram
 
 class ColorDataset(Dataset):
     def __init__(self, root, split='train', transform=None, use_pallet=False):
@@ -47,11 +47,12 @@ class ColorDataset(Dataset):
             pallet = []
             for clr in colors:
                 rgb = np.asarray(clr.rgb).reshape((1,1,3))
+                rgb = np.clip(np.round(rgb), 0, 255).astype(np.uint8)
                 lab = color.rgb2lab(rgb).astype(np.float32)
                 lab = transforms.ToTensor()(lab)
                 ab = lab[1:3, ...] / 110.0
                 pallet.append(ab)
-            
+
             while len(pallet) < 6:
                 pallet.append(torch.zeros((2,1,1)))
 

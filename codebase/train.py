@@ -9,6 +9,7 @@ from collections import OrderedDict
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 from skimage import color
 
@@ -260,6 +261,25 @@ def lab_to_rgb(luma: torch.Tensor, chroma: torch.Tensor) -> torch.Tensor:
     return torch.from_numpy(image)
 
 
+def visualize_palette(palette: torch.Tensor) -> torch.Tensor:
+    """Visualizes a color palette of AB channels in LAB color space.
+
+    Args:
+        palette (torch.Tensor): Palette AB channels of shape [N, 6, 2, 1, 1].
+
+    Returns:
+        torch.Tensor: Palette RGB image of shape [N, 3, H, W].
+    """
+    N, P, C, H, W = palette.size()
+    assert P == 6 and C == 2 and H ==1 and W == 1
+
+    chroma = palette.permute(0, 2, 1, 3, 4).view(N, 2, 2, 3)
+    luma = 0.5 * torch.ones(N, 1, 2, 3)
+    rgb = lab_to_rgb(luma, chroma)
+    rgb = F.interpolate(rgb, size=(100, 150))
+    return rgb
+
+
 def validate(val_loader, model, epoch=None, tb_logger=None):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -313,6 +333,7 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         tb_logger.log_image(gt_rgb, 'Label', epoch + 1)
         tb_logger.log_image(out_rgb, 'Prediction', epoch + 1)
         tb_logger.log_image(luma, 'Input', epoch + 1)
+        tb_logger.log_image(visualize_palette(pallet), 'Palette', epoch + 1)
 
         tb_logger.flush()
 
