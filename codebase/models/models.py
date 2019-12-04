@@ -44,7 +44,7 @@ class ColorModel(nn.Module):
 
 
     def forward(self, luma: torch.Tensor, chroma: torch.Tensor,
-                is_inference: bool = False, scale: int = 4, pallet=None):
+                is_inference: bool = False, scale: int = 4, pallet: torch.Tensor = None):
         """Predicts a color Lab image from input luma and computes loss.
 
         Args:
@@ -53,7 +53,7 @@ class ColorModel(nn.Module):
             is_inference (bool, optional): Whether to also return the predicted
                 image. Defaults to False.
             scale (int, optional): Scale by which to downsample. Defaults to 4.
-
+            pallet (torch.Tensor, optional): Color Pallet to condition output
         Returns:
             Returns loss or tuple of loss and output ab channels.
         """
