@@ -48,8 +48,8 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight_decay', '--wd', default=0.0001, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('-up', '--use_pallet', default=False, type=bool,
-                    help='condition based on gt target pallet')
+parser.add_argument('-up', '--use_palette', default=False, type=bool,
+                    help='condition based on gt target palette')
 
 parser.add_argument('--use_bilinear', default=False, action='store_true',
                     help='use a bilinear upsample rather than a bilateral network')
@@ -88,7 +88,7 @@ def main():
     builder = ModelBuilder()
     base_enc_model = builder.build_network(arch=args.arch)
     base_dec_model = Decoder(fc_dim=base_enc_model.fc_dim, fpn_dim=256,
-                             use_pallet=args.use_pallet)
+                             use_palette=args.use_palette)
 
     model = ColorModel(
         base_enc_model, base_dec_model, use_bilinear=args.use_bilinear,
@@ -114,14 +114,14 @@ def main():
 
     # create training and validation dataset
     transform = transforms.Compose([transforms.Resize(256),
-                    transforms.RandomCrop(args.img_size),
+                    transforms.CenterCrop(args.img_size),
                     ])
 
     dataset_train = ColorDataset(args.root, split="train",
-                    transform=transform, use_pallet=args.use_pallet)
+                    transform=transform, use_palette=args.use_palette)
 
     dataset_val = ColorDataset(args.root, split="val",
-                    transform=transform, use_pallet=args.use_pallet)
+                    transform=transform, use_palette=args.use_palette)
 
     # create training and validation loader
     train_loader = torch.utils.data.DataLoader(
@@ -137,18 +137,19 @@ def main():
         pin_memory=True
     )
 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum,
-                                weight_decay=args.weight_decay)
-
-    if args.evaluate:
-        validate(val_loader, model)
-        return
-
-    # training, start a logger
+    #start a logger
     tb_logdir = os.path.join(args.logdir, args.arch.lower() + '_{}'.format(args.logname))
     if not (os.path.exists(tb_logdir)):
         os.makedirs(tb_logdir)
     tb_logger = Logger(tb_logdir)
+
+    if args.evaluate:
+        validate(val_loader, model, tb_logger=tb_logger)
+        return
+
+    #training
+    optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum,
+                                weight_decay=args.weight_decay)
 
     for epoch in range(args.start_epoch, args.epochs):
         adjust_learning_rate(optimizer, epoch, args.lr_steps)
@@ -187,18 +188,22 @@ def train(train_loader, model, optimizer, epoch, tb_logger=None):
 
     end = time.time()
     for i, contents in enumerate(train_loader):
-        #reading pallet if use_pallet is true
-        if args.use_pallet:
-            luma, chroma, pallet = contents
+        #reading palette if use_palette is true
+        if args.use_palette:
+            if args.shift_palette:
+                luma, chroma, palette1, palette2 = contents
+            else:
+                luma, chroma, palette1 = contents
+                palette2 = palette1
         else:
             luma, chroma = contents
-            pallet = None
+            palette1, palette2 = None
 
         # measure data loading time
         data_time.update(time.time() - end)
 
         # compute output
-        loss = model(luma, chroma, scale=args.scale, pallet=pallet)
+        loss = model(luma, chroma, scale=args.scale, palette=palette2)
         loss = loss.mean()
 
         # measure accuracy and record loss
@@ -290,16 +295,20 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
 
     end = time.time()
     for i, contents in enumerate(val_loader):
-        if args.use_pallet:
-            luma, chroma, pallet = contents
+        if args.use_palette:
+            if args.shift_palette:
+                luma, chroma, palette1, palette2 = contents
+            else:
+                luma, chroma, palette1 = contents
+                palette2 = palette1
         else:
             luma, chroma = contents
-            pallet = None
+            palette1, palette2 = None
 
         # compute output
         with torch.no_grad():
             loss, output = model(luma, chroma, is_inference=True,
-                                 scale=args.scale, pallet=pallet)
+                                 scale=args.scale, palette=palette2)
             loss = loss.mean()
 
         # measure accuracy and record loss
@@ -333,7 +342,8 @@ def validate(val_loader, model, epoch=None, tb_logger=None):
         tb_logger.log_image(gt_rgb, 'Label', epoch + 1)
         tb_logger.log_image(out_rgb, 'Prediction', epoch + 1)
         tb_logger.log_image(luma, 'Input', epoch + 1)
-        tb_logger.log_image(visualize_palette(pallet), 'Palette', epoch + 1)
+        tb_logger.log_image(visualize_palette(palette1), 'Original Palette', epoch + 1)
+        tb_logger.log_image(visualize_palette(palette2), 'Recolorized Palette', epoch + 1)
 
         tb_logger.flush()
 

@@ -44,7 +44,7 @@ class ColorModel(nn.Module):
 
 
     def forward(self, luma: torch.Tensor, chroma: torch.Tensor,
-                is_inference: bool = False, scale: int = 4, pallet: torch.Tensor = None):
+                is_inference: bool = False, scale: int = 4, palette: torch.Tensor = None):
         """Predicts a color Lab image from input luma and computes loss.
 
         Args:
@@ -53,13 +53,13 @@ class ColorModel(nn.Module):
             is_inference (bool, optional): Whether to also return the predicted
                 image. Defaults to False.
             scale (int, optional): Scale by which to downsample. Defaults to 4.
-            pallet (torch.Tensor, optional): Color Pallet to condition output
+            palette (torch.Tensor, optional): Color palette to condition output
         Returns:
             Returns loss or tuple of loss and output ab channels.
         """
         inputs = luma.repeat(1, 3, 1, 1)
         # Features are of shape [N, self.decoder.fc_dim, H//4, W//4]
-        feat = self.decoder(self.encoder(inputs), pallet)
+        feat = self.decoder(self.encoder(inputs), palette)
 
         # Resizes features and inputs according to self.scale.
         size = (luma.shape[2] // scale, luma.shape[3] // scale)
@@ -84,6 +84,89 @@ class ColorModel(nn.Module):
                                    mode='bilinear', align_corners=False)
 
         loss = self.crit(output, chroma)
+
+        if is_inference:
+            return loss, output
+        return loss
+
+class ReColorModel(nn.Module):
+    def __init__(self, net_enc, net_dec, use_bilinear=False,
+                 learn_guide=False, bilateral_depth=8, num_features=256):
+        super(ReColorModel, self).__init__()
+        self.encoder = net_enc
+        self.decoder = net_dec
+        self.crit = nn.SmoothL1Loss()
+
+        self.bilateral_net = None
+        self.guide_net = None
+        self.direct_net = None
+
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(net_dec.fpn_dim + 1, num_features, kernel_size=3),
+            nn.ReLU(),
+            resnet.BasicBlock(num_features, num_features),
+        )
+
+        if use_bilinear:
+            self.direct_net = nn.Sequential(
+                nn.Conv2d(num_features, 2, kernel_size=1),
+                nn.Tanh(),
+            )
+        else:
+            self.bilateral_net = BilateralColorNet(
+                num_input_features=num_features,
+                bilateral_depth=bilateral_depth)
+            if learn_guide:
+                self.guide_net = nn.Sequential(
+                    nn.Conv2d(1, 64, kernel_size=3, padding=1),
+                    nn.ReLU(),
+                    resnet.BasicBlock(64, 64),
+                    nn.Conv2d(64, 1, kernel_size=1),
+                    nn.Sigmoid(),
+                )
+
+
+    def forward(self, luma: torch.Tensor, chroma: torch.Tensor, chroma_shifted: torch.Tensor, 
+                is_inference: bool = False, scale: int = 4, palette: torch.Tensor = None):
+        """Predicts a color Lab image from input luma and computes loss.
+
+        Args:
+            luma (torch.Tensor): Tensor of shape [N, 1, H, W].
+            chroma (torch.Tensor): Tensor of shape [N, 2, H, W].
+            is_inference (bool, optional): Whether to also return the predicted
+                image. Defaults to False.
+            scale (int, optional): Scale by which to downsample. Defaults to 4.
+            palette (torch.Tensor, optional): Color palette to condition output
+        Returns:
+            Returns loss or tuple of loss and output ab channels.
+        """
+        inputs = torch.cat((luma, chroma), dim=1)
+        # Features are of shape [N, self.decoder.fc_dim, H//4, W//4]
+        feat = self.decoder(self.encoder(inputs), palette)
+
+        # Resizes features and inputs according to self.scale.
+        size = (luma.shape[2] // scale, luma.shape[3] // scale)
+        scaled_luma = F.interpolate(
+            luma, size=size, mode='bilinear', align_corners=False)
+        scaled_feat = F.interpolate(
+            feat, size=size, mode='bilinear', align_corners=False)
+
+        # Concat features with input luma and
+        feat = torch.cat((scaled_luma, scaled_feat), dim=1)
+        feat = self.conv_block(feat)
+
+        if self.bilateral_net is not None:
+            if self.guide_net is not None:
+                guide = self.guide_net(luma)
+            else:
+                guide = luma
+            output = self.bilateral_net(guide, feat)
+        else:
+            output = self.direct_net(feat)
+            output = F.interpolate(output, size=luma.shape[2:4],
+                                   mode='bilinear', align_corners=False)
+
+        loss = self.crit(output, chroma_shifted)
 
         if is_inference:
             return loss, output
